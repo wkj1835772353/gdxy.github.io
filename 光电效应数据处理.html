@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光电效应 - 普朗克常量测定 | 最小二乘法数据处理</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js">
+    </script>
+    <style>
+        :root {
+            --bg: #0a0d14;
+            --bg-card: #111620;
+            --bg-input: #1a1f2e;
+            --gold: #d4a745;
+            --gold-light: #f0d078;
+            --gold-dark: #b8861e;
+            --text: #e0e0e0;
+            --text-secondary: #b0b5c0;
+            --border: #2a3040;
+            --accent: #5b9bd5;
+            --accent2: #e8734a;
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+            --font-sans: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+            --radius: 10px;
+            --radius-sm: 6px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+        #particlesCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        .main-container { position: relative; z-index: 1; max-width: 1300px; margin: 0 auto; padding: 20px 24px 60px; }
+        .header { text-align: center; padding: 40px 20px 30px; position: relative; }
+        .header::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 300px; height: 300px; background: radial-gradient(circle, rgba(212, 167, 69, 0.08) 0%, transparent 70%);
+            border-radius: 50%; pointer-events: none; }
+        .header-icon { font-size: 48px; margin-bottom: 8px; display: inline-block; animation: floatIcon 3s ease-in-out infinite; }
+        @keyframes floatIcon { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+        .header h1 { font-size: 2.2em; font-weight: 700; letter-spacing: 0.03em;
+            background: linear-gradient(135deg, #f0d078 0%, #d4a745 30%, #e8c565 60%, #f0d078 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 6px; }
+        .header .subtitle { font-size: 1.05em; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 300; }
+        .formula-preview { display: inline-block; margin-top: 10px; padding: 12px 24px; background: rgba(212, 167, 69, 0.08);
+            border: 1px solid rgba(212, 167, 69, 0.25); border-radius: 20px; font-size: 1.1em; color: var(--gold-light); }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 28px;
+            margin-bottom: 22px; box-shadow: 0 4px 24px rgba(0,0,0,0.4); transition: var(--transition); }
+        .card:hover { border-color: #3a4055; box-shadow: 0 6px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,167,69,0.06); }
+        .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding-bottom: 14px;
+            border-bottom: 1px solid var(--border); }
+        .card-header .icon { font-size: 1.5em; }
+        .card-header h2 { font-size: 1.25em; font-weight: 600; color: var(--gold-light); letter-spacing: 0.03em; }
+        .badge { font-size: 0.75em; padding: 3px 10px; border-radius: 12px; background: rgba(212,167,69,0.15);
+            color: var(--gold); font-weight: 500; }
+        .table-wrapper { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.92em; min-width: 700px; }
+        table thead th { background: rgba(212,167,69,0.1); color: var(--gold-light); padding: 12px 10px;
+            border: 1px solid var(--border); font-weight: 600; text-align: center; white-space: nowrap; }
+        table tbody td { padding: 9px 8px; border: 1px solid var(--border); text-align: center; font-family: var(--font-mono);
+            font-size: 0.9em; color: var(--text); }
+        table tbody tr:hover { background: rgba(212,167,69,0.04); }
+        table input { width: 85px; padding: 7px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-input); color: #fff; font-family: var(--font-mono); font-size: 0.9em; text-align: center;
+            transition: var(--transition); }
+        table input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212,167,69,0.1); background: #1e2535; }
+        .readonly-cell { color: var(--gold-light) !important; font-weight: 500; }
+        .computed-row td { background: rgba(91,155,213,0.06); color: var(--accent); font-weight: 500; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px; border: none; border-radius: 25px;
+            font-size: 1em; font-weight: 600; cursor: pointer; letter-spacing: 0.04em; transition: var(--transition);
+            font-family: var(--font-sans); }
+        .btn-primary { background: linear-gradient(135deg, #c8943e 0%, #d4a745 40%, #e8c565 100%); color: #1a1206;
+            box-shadow: 0 4px 20px rgba(212,167,69,0.3); }
+        .btn-primary:hover { box-shadow: 0 6px 28px rgba(212,167,69,0.45); transform: translateY(-2px); }
+        .btn-secondary { background: transparent; border: 1.5px solid var(--gold); color: var(--gold-light); }
+        .btn-secondary:hover { background: rgba(212,167,69,0.08); }
+        .btn-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 20px 0; }
+        .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 16px; }
+        .result-item { background: rgba(212,167,69,0.04); border: 1px solid var(--border); border-radius: var(--radius-sm);
+            padding: 18px 16px; text-align: center; transition: var(--transition); }
+        .result-item:hover { border-color: rgba(212,167,69,0.35); background: rgba(212,167,69,0.07); }
+        .result-item .label { font-size: 0.8em; color: var(--text-secondary); letter-spacing: 0.04em; margin-bottom: 6px; }
+        .result-item .value { font-family: var(--font-mono); font-size: 1.3em; font-weight: 700; color: var(--gold-light); word-break: break-all; }
+        .result-item .value.highlight { font-size: 1.5em; background: linear-gradient(135deg, #f0d078, #e8c565);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .result-item .sub { font-size: 0.78em; color: var(--text-secondary); margin-top: 2px; }
+        .step-block { margin: 14px 0; padding: 16px 20px; background: rgba(26,31,46,0.6); border-left: 3px solid var(--gold-dark);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 0.9em; line-height: 1.7; overflow-x: auto; color: #c8cdd8; }
+        .step-block .step-title { font-weight: 700; color: var(--gold-light); font-family: var(--font-sans);
+            font-size: 0.95em; display: block; margin-bottom: 8px; }
+        .chart-container { position: relative; width: 100%; max-width: 750px; margin: 16px auto; padding: 12px;
+            background: rgba(10,13,20,0.5); border-radius: var(--radius); border: 1px solid var(--border); }
+        .chart-container canvas { width: 100% !important; height: auto !important; max-height: 420px; }
+        .chart-legend-note { text-align: center; font-size: 0.8em; color: var(--text-secondary); margin-top: 6px; }
+
+        /* 纯 CSS 分数样式 */
+        .frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; font-size: inherit; }
+        .frac .num { border-bottom: 1.5px solid currentColor; padding: 0 4px 1px; display: block; }
+        .frac .den { padding: 1px 4px 0; display: block; }
+        .formula { font-family: var(--font-mono); font-size: 1.05em; line-height: 1.8; }
+        .highlight-gold { color: #f0d078; font-weight: 600; }
+        .highlight-blue { color: #5b9bd5; font-weight: 600; }
+        .num-value { color: #e8c565; font-weight: 700; }
+    </style>
+</head>
+<body>
+<canvas id="particlesCanvas"></canvas>
+<div class="main-container">
+    <div class="header">
+        <div class="header-icon">⚡</div>
+        <h1>光电效应 · 普朗克常量测定</h1>
+        <p class="subtitle">基于最小二乘法的实验数据处理 | 交点法图像分析</p>
+        <div class="formula-preview formula">
+            e|U<sub>0</sub>| = hν − W<sub>0</sub> &nbsp;→&nbsp; |U<sub>0</sub>| = <span class="frac"><span class="num">h</span><span class="den">e</span></span> ν − <span class="frac"><span class="num">W<sub>0</sub></span><span class="den">e</span></span>
+        </div>
+    </div>
+
+    <!-- 核心公式 -->
+    <div class="card">
+        <div class="card-header"><span class="icon">📐</span><h2>核心公式</h2><span class="badge">最小二乘法</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;font-size:1em;line-height:2.0;" class="formula">
+            <div>
+                <strong class="highlight-gold">光电效应方程：</strong><br>
+                e|U<sub>0</sub>| = hν − W<sub>0</sub><br>
+                <strong class="highlight-gold">线性形式：</strong><br>
+                |U<sub>0</sub>| = <span class="frac"><span class="num">h</span><span class="den">e</span></span> ν − <span class="frac"><span class="num">W<sub>0</sub></span><span class="den">e</span></span><br>
+                即：y = b x + a &nbsp; ( y=|U<sub>0</sub>| , x=ν )
+            </div>
+            <div>
+                <strong class="highlight-gold">最小二乘法斜率：</strong><br>
+                b = <span class="frac"><span class="num">nΣx<sub>i</sub>y<sub>i</sub> − Σx<sub>i</sub> Σy<sub>i</sub></span><span class="den">nΣx<sub>i</sub><sup>2</sup> − (Σx<sub>i</sub>)<sup>2</sup></span></span><br>
+                <strong class="highlight-gold">截距：</strong><br>
+                a = <span class="frac"><span class="num">Σy<sub>i</sub> − bΣx<sub>i</sub></span><span class="den">n</span></span>
+            </div>
+            <div>
+                <strong class="highlight-gold">普朗克常量：</strong><br>
+                h = e · b<br>
+                <strong class="highlight-gold">红限频率：</strong><br>
+                ν<sub>0</sub> = − <span class="frac"><span class="num">a</span><span class="den">b</span></span><br>
+                <strong class="highlight-gold">逸出功：</strong><br>
+                W<sub>0</sub> = hν<sub>0</sub> = e|a|
+            </div>
+        </div>
+    </div>
+
+    <!-- 表1 -->
+    <div class="card">
+        <div class="card-header"><span class="icon">📋</span><h2>表1 · 不同波长单色光的截止电压</h2></div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>波长 λ / nm</th><th>365</th><th>405</th><th>436</th><th>546</th><th>577</th></tr></thead>
+                <tbody>
+                    <tr><td>截止电压 U₀ / V</td>
+                        <td><input type="number" step="any" id="u0_365" value="-1.886"></td>
+                        <td><input type="number" step="any" id="u0_405" value="-1.566"></td>
+                        <td><input type="number" step="any" id="u0_436" value="-1.378"></td>
+                        <td><input type="number" step="any" id="u0_546" value="-0.854"></td>
+                        <td><input type="number" step="any" id="u0_577" value="-0.702"></td>
+                    </tr>
+                    <tr class="computed-row"><td>频率 ν (×10¹⁴ Hz)</td>
+                        <td class="readonly-cell" id="nu_365">--</td><td class="readonly-cell" id="nu_405">--</td>
+                        <td class="readonly-cell" id="nu_436">--</td><td class="readonly-cell" id="nu_546">--</td>
+                        <td class="readonly-cell" id="nu_577">--</td>
+                    </tr>
+                    <tr class="computed-row"><td>|U₀| / V</td>
+                        <td class="readonly-cell" id="abs_u0_365">--</td><td class="readonly-cell" id="abs_u0_405">--</td>
+                        <td class="readonly-cell" id="abs_u0_436">--</td><td class="readonly-cell" id="abs_u0_546">--</td>
+                        <td class="readonly-cell" id="abs_u0_577">--</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="btn-row">
+            <button class="btn btn-primary" onclick="computeAll()">🔬 开始计算并生成图像</button>
+            <button class="btn btn-secondary" onclick="resetToDefault()">↺ 恢复默认数据</button>
+        </div>
+    </div>
+
+    <!-- 表2和表3 -->
+    <div class="card">
+        <div class="card-header"><span class="icon">📊</span><h2>436 nm 伏安特性曲线数据</h2></div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>序号</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th></tr></thead>
+                <tbody>
+                    <tr><td>U / V</td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.998"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.942"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.886"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.828"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.772"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.716"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.660"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.604"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.548"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.492"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.436"></td>
+                        <td><input type="number" step="any" class="iu-u" value="-1.378"></td>
+                    </tr>
+                    <tr><td>I (×10⁻¹³A)</td>
+                        <td><input type="number" step="any" class="iu-i" value="-46"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-44"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-43"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-41"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-39"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-37"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-35"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-32"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-27"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-23"></td>
+                        <td><input type="number" step="any" class="iu-i" value="-12"></td>
+                        <td><input type="number" step="any" class="iu-i" value="0"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p style="text-align:center;margin-top:6px;font-size:0.8em;color:var(--text-secondary);">表3延续（U₀ → 0V）</p>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>序号</th><th>13</th><th>14</th><th>15</th><th>16</th><th>17</th><th>18</th><th>19</th></tr></thead>
+                <tbody>
+                    <tr><td>U / V</td>
+                        <td><input type="number" step="any" class="iu-u2" value="-1.378"></td>
+                        <td><input type="number" step="any" class="iu-u2" value="-1.148"></td>
+                        <td><input type="number" step="any" class="iu-u2" value="-0.922"></td>
+                        <td><input type="number" step="any" class="iu-u2" value="-0.692"></td>
+                        <td><input type="number" step="any" class="iu-u2" value="-0.462"></td>
+                        <td><input type="number" step="any" class="iu-u2" value="-0.232"></td>
+                        <td><input type="number" step="any" class="iu-u2" value="0"></td>
+                    </tr>
+                    <tr><td>I (×10⁻¹³A)</td>
+                        <td><input type="number" step="any" class="iu-i2" value="0"></td>
+                        <td><input type="number" step="any" class="iu-i2" value="186"></td>
+                        <td><input type="number" step="any" class="iu-i2" value="488"></td>
+                        <td><input type="number" step="any" class="iu-i2" value="780"></td>
+                        <td><input type="number" step="any" class="iu-i2" value="1240"></td>
+                        <td><input type="number" step="any" class="iu-i2" value="1650"></td>
+                        <td><input type="number" step="any" class="iu-i2" value="2240"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 图表 -->
+    <div class="card">
+        <div class="card-header"><span class="icon">📈</span><h2>交点法图像 & 伏安特性曲线</h2></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:20px;">
+            <div class="chart-container">
+                <h3 style="text-align:center;color:var(--gold-light);margin-bottom:8px;">图1：|U₀| − ν 散点图 & 拟合直线</h3>
+                <canvas id="chartU0Nu"></canvas>
+                <p class="chart-legend-note">🔴 散点：实验数据 | 🟡 虚线：拟合直线 | 🔵 交点：红限频率 ν₀</p>
+            </div>
+            <div class="chart-container">
+                <h3 style="text-align:center;color:var(--gold-light);margin-bottom:8px;">图2：436 nm I−U 伏安特性曲线</h3>
+                <canvas id="chartIU"></canvas>
+                <p class="chart-legend-note">🟢 曲线与U轴交点即为截止电压，由数据自动计算</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 结果 -->
+    <div class="card" id="resultsCard">
+        <div class="card-header"><span class="icon">🎯</span><h2>计算结果</h2></div>
+        <div class="result-grid">
+            <div class="result-item"><div class="label">斜率 b = h/e</div><div class="value" id="resSlope">--</div><div class="sub">×10⁻¹⁵ V·s</div></div>
+            <div class="result-item"><div class="label">截距 a = −W₀/e</div><div class="value" id="resIntercept">--</div><div class="sub">V</div></div>
+            <div class="result-item"><div class="label">普朗克常量 h</div><div class="value highlight" id="resH">--</div><div class="sub">J·s</div></div>
+            <div class="result-item"><div class="label">红限频率 ν₀</div><div class="value" id="resNu0">--</div><div class="sub">×10¹⁴ Hz</div></div>
+            <div class="result-item"><div class="label">逸出功 W₀</div><div class="value" id="resW0">--</div><div class="sub">eV</div></div>
+            <div class="result-item"><div class="label">相对误差 vs 标准值</div><div class="value" id="resRelErr">--</div><div class="sub">h₍标₎ = 6.626176×10⁻³⁴ J·s</div></div>
+            <div class="result-item" style="grid-column:1/-1;"><div class="label">普朗克常量完整表达式</div><div class="value highlight" id="resFullExpr">--</div></div>
+        </div>
+    </div>
+
+    <!-- 步骤 -->
+    <div class="card" id="stepsCard">
+        <div class="card-header"><span class="icon">📝</span><h2>详细计算步骤</h2></div>
+        <div id="stepsContainer"><p style="color:var(--text-secondary);text-align:center;">点击“开始计算并生成图像”查看详细步骤...</p></div>
+    </div>
+</div>
+
+<script>
+    // 粒子背景
+    (function() {
+        const canvas = document.getElementById('particlesCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        class Particle {
+            constructor() { this.reset(); this.y = Math.random() * canvas.height; }
+            reset() { this.x = -20; this.y = Math.random() * canvas.height; this.size = Math.random() * 2.2 + 0.6;
+                this.speedX = Math.random() * 1.8 + 0.5; this.speedY = (Math.random() - 0.5) * 0.6;
+                this.opacity = Math.random() * 0.55 + 0.15; this.twinkleSpeed = Math.random() * 0.02 + 0.005;
+                this.twinkleOffset = Math.random() * Math.PI * 2; }
+            update() { this.x += this.speedX; this.y += this.speedY;
+                this.opacity += Math.sin(Date.now() * this.twinkleSpeed + this.twinkleOffset) * 0.003;
+                this.opacity = Math.max(0.08, Math.min(0.7, this.opacity));
+                if (this.x > canvas.width + 30 || this.y < -30 || this.y > canvas.height + 30) { this.reset(); this.x = -20; } }
+            draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(240,208,120,${this.opacity})`; ctx.fill();
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size*2.5, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(240,208,120,${this.opacity*0.25})`; ctx.fill(); }
+        }
+        for (let i=0; i<55; i++) particles.push(new Particle());
+        function animateParticles() { ctx.clearRect(0,0,canvas.width,canvas.height); particles.forEach(p=>{ p.update(); p.draw(); }); requestAnimationFrame(animateParticles); }
+        animateParticles();
+    })();
+
+    const C = 2.99792458e8, E = 1.602176634e-19, H_STANDARD = 6.626176e-34;
+    const WAVELENGTHS = [365,405,436,546,577];
+    let chartU0NuInstance = null, chartIUInstance = null;
+
+    function getVal(id) { const el = document.getElementById(id); return el ? parseFloat(el.value) : NaN; }
+    function setText(id, text) { const el = document.getElementById(id); if(el) el.textContent = text; }
+    function fmt(num, dec=4) { return Math.abs(num)<1e-30 ? '0' : num.toFixed(dec); }
+    // 修正：使用更可靠的保留有效数字的科学计数法
+    function fmtSci(num, dec=6) {
+        if (Math.abs(num) < 1e-30) return '0';
+        return num.toExponential(dec);
+    }
+
+    function computeAll() {
+        const u0_raw = WAVELENGTHS.map(w => getVal(`u0_${w}`));
+        if (u0_raw.some(isNaN)) { alert('请确保表1中所有截止电压均已填写数字！'); return; }
+        const nu = WAVELENGTHS.map(wl => C/(wl*1e-9)/1e14);
+        const absU0 = u0_raw.map(u => Math.abs(u));
+        WAVELENGTHS.forEach((w,i) => { setText(`nu_${w}`, fmt(nu[i],4)); setText(`abs_u0_${w}`, fmt(absU0[i],3)); });
+
+        const x = nu, y = absU0, n = x.length;
+        const sumX = x.reduce((a,b)=>a+b,0), sumY = y.reduce((a,b)=>a+b,0);
+        const sumXY = x.reduce((s,xi,i)=>s+xi*y[i],0), sumX2 = x.reduce((s,xi)=>s+xi*xi,0);
+        const sumY2 = y.reduce((s,yi)=>s+yi*yi,0);
+        const xBar = sumX/n, yBar = sumY/n;
+        const denom = n*sumX2 - sumX*sumX;
+        const slope_b = (n*sumXY - sumX*sumY)/denom;
+        const intercept_a = (sumY - slope_b*sumX)/n;
+        const b_SI = slope_b * 1e-14;
+        const h_val = E * b_SI;  // J·s
+        const nu0 = -intercept_a / slope_b;
+        const W0_eV = Math.abs(intercept_a);
+
+        const yFit = x.map(xi => slope_b*xi + intercept_a);
+        const residuals = y.map((yi,i) => yi - yFit[i]);
+        const sumRes2 = residuals.reduce((s,r)=>s+r*r,0);
+        const sy = Math.sqrt(sumRes2/(n-2));
+        const Sxx = sumX2 - n*xBar*xBar;
+        const sb = sy / Math.sqrt(Sxx);
+        const sa = sy * Math.sqrt(sumX2/(n*Sxx));
+        const sb_SI = sb * 1e-14;
+        const h_uncertainty = E * sb_SI;
+        const r_num = n*sumXY - sumX*sumY;
+        const r_den = Math.sqrt((n*sumX2 - sumX*sumX)*(n*sumY2 - sumY*sumY));
+        const r_val = r_num/r_den;
+        const relErr = (h_val - H_STANDARD)/H_STANDARD*100;
+
+        setText('resSlope', `${fmt(slope_b,6)} ± ${fmt(sb,6)}`);
+        setText('resIntercept', `${fmt(intercept_a,6)} ± ${fmt(sa,6)}`);
+        // 确保 h 显示为非零科学计数法
+      setText('resH', `${h_val.toExponential(6)} ± ${h_uncertainty.toExponential(4)}`);
+        setText('resNu0', fmt(nu0,4));
+        setText('resW0', fmt(W0_eV,4));
+        setText('resRelErr', `${fmt(relErr,4)}%`);
+        setText('resFullExpr', `h = (${fmt(h_val*1e34,4)} ± ${fmt(h_uncertainty*1e34,4)}) × 10⁻³⁴ J·s`);
+
+        generateSteps(u0_raw, nu, absU0, x, y, n, sumX, sumY, sumXY, sumX2, xBar, yBar, slope_b, intercept_a, b_SI, h_val, nu0, W0_eV, sy, sb, sa, h_uncertainty, r_val, relErr, denom, residuals, sumRes2);
+        drawU0NuChart(x, y, slope_b, intercept_a, nu0);
+        drawIUChart();
+        document.getElementById('resultsCard').scrollIntoView({behavior:'smooth',block:'start'});
+    }
+
+    function generateSteps(u0_raw, nu, absU0, x, y, n, sumX, sumY, sumXY, sumX2, xBar, yBar, slope_b, intercept_a, b_SI, h_val, nu0, W0_eV, sy, sb, sa, h_uncertainty, r_val, relErr, denom, residuals, sumRes2) {
+        const container = document.getElementById('stepsContainer');
+        let html = '';
+        html += `<div class="step-block"><span class="step-title">🔹 步骤1：数据准备</span>
+        波长 λ (nm)：${WAVELENGTHS.join(', ')}<br>
+        截止电压 U₀ (V)：${u0_raw.map(u=>fmt(u,3)).join(', ')}<br>
+        频率 ν = c/λ，c = ${C.toExponential(6)} m/s<br>
+        ν (×10¹⁴ Hz)：${nu.map(v=>fmt(v,4)).join(', ')}<br>
+        取绝对值：|U₀| (V)：${absU0.map(v=>fmt(v,3)).join(', ')}</div>`;
+
+        html += `<div class="step-block"><span class="step-title">🔹 步骤2：求和项</span>
+        n = ${n}<br>
+        Σxᵢ = ${fmt(sumX,6)}， Σyᵢ = ${fmt(sumY,6)}<br>
+        Σxᵢyᵢ = ${fmt(sumXY,6)}， Σxᵢ² = ${fmt(sumX2,6)}<br>
+        x̄ = ${fmt(xBar,6)}， ȳ = ${fmt(yBar,6)}</div>`;
+
+        html += `<div class="step-block"><span class="step-title">🔹 步骤3：斜率 b 和截距 a</span>
+        斜率 b = <span class="frac"><span class="num">${n}×${fmt(sumXY,6)} − ${fmt(sumX,6)}×${fmt(sumY,6)}</span><span class="den">${n}×${fmt(sumX2,6)} − (${fmt(sumX,6)})²</span></span> = <span class="num-value">${fmt(slope_b,6)}</span> V/(10¹⁴Hz)<br>
+        截距 a = <span class="frac"><span class="num">${fmt(sumY,6)} − ${fmt(slope_b,6)}×${fmt(sumX,6)}</span><span class="den">${n}</span></span> = <span class="num-value">${fmt(intercept_a,6)}</span> V</div>`;
+
+        // 强制使用 toExponential 显示 h
+        html += `<div class="step-block"><span class="step-title">🔹 步骤4：普朗克常量 h</span>
+        b (SI) = ${fmt(slope_b,6)} × 10⁻¹⁴ = ${b_SI.toExponential(6)} V·s<br>
+        h = e·b = ${E.toExponential(6)} × ${b_SI.toExponential(6)} = <span class="num-value">${h_val.toExponential(6)}</span> J·s</div>`;
+
+        html += `<div class="step-block"><span class="step-title">🔹 步骤5：红限频率和逸出功</span>
+        ν₀ = −a/b = −(${fmt(intercept_a,6)}) / ${fmt(slope_b,6)} = <span class="num-value">${fmt(nu0,4)} ×10¹⁴ Hz</span><br>
+        W₀ = e·|a| = ${E.toExponential(6)} × ${fmt(Math.abs(intercept_a),6)} = <span class="num-value">${fmt(W0_eV,4)} eV</span></div>`;
+
+        html += `<div class="step-block"><span class="step-title">🔹 步骤6：不确定度</span>
+        标准误差 s_y = ${fmt(sy,6)}<br>
+        斜率不确定度 s_b = ${fmt(sb,6)}<br>
+        截距不确定度 s_a = ${fmt(sa,6)}<br>
+        h的不确定度 Δh = e·s_b<sub>SI</sub> = <span class="num-value">${h_uncertainty.toExponential(4)} J·s</span><br>
+        相关系数 r = ${fmt(r_val,6)}</div>`;
+
+        html += `<div class="step-block"><span class="step-title">🔹 步骤7：最终结果</span>
+        <strong>普朗克常量：</strong>h = (${fmt(h_val*1e34,4)} ± ${fmt(h_uncertainty*1e34,4)}) × 10⁻³⁴ J·s<br>
+        相对误差：<span class="num-value">${fmt(relErr,4)}%</span></div>`;
+        container.innerHTML = html;
+    }
+
+    function drawU0NuChart(x, y, slope_b, intercept_a, nu0) {
+        const ctxEl = document.getElementById('chartU0Nu'); if(!ctxEl) return;
+        if(chartU0NuInstance) chartU0NuInstance.destroy();
+        const xMin = Math.min(...x)*0.92, xMax = Math.max(...x)*1.08;
+        const fitX = [xMin, xMax], fitY = fitX.map(xi => slope_b*xi + intercept_a);
+        chartU0NuInstance = new Chart(ctxEl, {
+            type: 'scatter', data: { datasets: [
+                { label: '实验数据点', data: x.map((xi,i)=>({x:xi, y:y[i]})), backgroundColor: '#e8734a', pointRadius: 7, pointHoverRadius: 11 },
+                { label: '拟合直线', data: fitX.map((xi,i)=>({x:xi, y:fitY[i]})), type: 'line', borderColor: '#f0d078', borderWidth: 2.5, borderDash: [6,3], pointRadius: 0, fill: false },
+                { label: `ν₀ = ${fmt(nu0,3)}`, data: [{x:nu0, y:0}], backgroundColor: '#5b9bd5', pointRadius: 10, pointHoverRadius: 14, pointStyle: 'rectRounded' }
+            ] },
+            options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1.5,
+                plugins: { legend: { labels: { color: '#c8cdd8', font:{size:11}, usePointStyle: true } } },
+                scales: { x: { title: { display:true, text:'频率 ν (×10¹⁴ Hz)', color:'#f0d078' }, ticks:{color:'#b0b5c0'} },
+                          y: { title: { display:true, text:'|U₀| (V)', color:'#f0d078' }, ticks:{color:'#b0b5c0'} } }
+            }
+        });
+    }
+
+    function findCutoffVoltage(data) {
+        for (let i=0; i<data.length-1; i++) {
+            const i1 = data[i].i, i2 = data[i+1].i;
+            if ((i1 <= 0 && i2 >= 0) || (i1 >= 0 && i2 <= 0)) {
+                const u1 = data[i].u, u2 = data[i+1].u;
+                const t = Math.abs(i1) / (Math.abs(i1) + Math.abs(i2));
+                return u1 + t * (u2 - u1);
+            }
+        }
+        return null;
+    }
+
+    function drawIUChart() {
+        const ctxEl = document.getElementById('chartIU'); if(!ctxEl) return;
+        if(chartIUInstance) chartIUInstance.destroy();
+        const uInputs = document.querySelectorAll('.iu-u'), iInputs = document.querySelectorAll('.iu-i');
+        const uArr1 = [], iArr1 = [];
+        uInputs.forEach((el,i)=>{ const uv=parseFloat(el.value), iv=parseFloat(iInputs[i].value); if(!isNaN(uv)&&!isNaN(iv)){ uArr1.push(uv); iArr1.push(iv); } });
+        const u2Inputs = document.querySelectorAll('.iu-u2'), i2Inputs = document.querySelectorAll('.iu-i2');
+        const uArr2 = [], iArr2 = [];
+        u2Inputs.forEach((el,i)=>{ const uv=parseFloat(el.value), iv=parseFloat(i2Inputs[i].value); if(!isNaN(uv)&&!isNaN(iv)){ uArr2.push(uv); iArr2.push(iv); } });
+        let allU = [...uArr1], allI = [...iArr1];
+        for(let i=1;i<uArr2.length;i++){ allU.push(uArr2[i]); allI.push(iArr2[i]); }
+        const combined = allU.map((u,i)=>({u, i:allI[i]})).sort((a,b)=>a.u-b.u);
+        const cutoffU = findCutoffVoltage(combined);
+        const datasets = [{
+            label: '436 nm I-U 数据', data: combined.map(p=>({x:p.u, y:p.i})),
+            backgroundColor: '#5b9bd5', pointRadius: 5, pointHoverRadius: 9, showLine: true,
+            borderColor: '#7ec8e3', borderWidth: 2, tension: 0.35
+        }];
+        if (cutoffU !== null) {
+            datasets.push({
+                label: `截止电压 U₀ = ${fmt(cutoffU,3)} V`, data: [{x:cutoffU, y:0}],
+                backgroundColor: '#e8734a', pointRadius: 9, pointHoverRadius: 13, pointStyle: 'rectRounded', borderWidth: 3
+            });
+        }
+        chartIUInstance = new Chart(ctxEl, {
+            type: 'scatter', data: { datasets },
+            options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1.5,
+                plugins: { legend: { labels: { color: '#c8cdd8', font:{size:11}, usePointStyle: true } } },
+                scales: { x: { title: { display:true, text:'电压 U (V)', color:'#7ec8e3' }, ticks:{color:'#b0b5c0'} },
+                          y: { title: { display:true, text:'光电流 I (×10⁻¹³ A)', color:'#7ec8e3' }, ticks:{color:'#b0b5c0'} } }
+            }
+        });
+    }
+
+    function resetToDefault() {
+        const defU0 = [-1.886,-1.566,-1.378,-0.854,-0.702];
+        WAVELENGTHS.forEach((w,i)=>{ document.getElementById(`u0_${w}`).value = defU0[i]; });
+        const iuUdef = [-1.998,-1.942,-1.886,-1.828,-1.772,-1.716,-1.660,-1.604,-1.548,-1.492,-1.436,-1.378];
+        const iuIdef = [-46,-44,-43,-41,-39,-37,-35,-32,-27,-23,-12,0];
+        document.querySelectorAll('.iu-u').forEach((el,i)=>{ if(i<iuUdef.length) el.value = iuUdef[i]; });
+        document.querySelectorAll('.iu-i').forEach((el,i)=>{ if(i<iuIdef.length) el.value = iuIdef[i]; });
+        document.querySelectorAll('.iu-u2').forEach((el,i)=>{ const def = [-1.378,-1.148,-0.922,-0.692,-0.462,-0.232,0]; el.value = def[i]; });
+        document.querySelectorAll('.iu-i2').forEach((el,i)=>{ const def = [0,186,488,780,1240,1650,2240]; el.value = def[i]; });
+        ['resSlope','resIntercept','resH','resNu0','resW0','resRelErr','resFullExpr'].forEach(id=>setText(id,'--'));
+        document.getElementById('stepsContainer').innerHTML = '<p style="color:var(--text-secondary);text-align:center;">点击“开始计算并生成图像”查看详细步骤...</p>';
+        if(chartU0NuInstance){ chartU0NuInstance.destroy(); chartU0NuInstance = null; }
+        if(chartIUInstance){ chartIUInstance.destroy(); chartIUInstance = null; }
+        WAVELENGTHS.forEach(w=>{ setText(`nu_${w}`,'--'); setText(`abs_u0_${w}`,'--'); });
+    }
+</script>
+</body>
+</html>
